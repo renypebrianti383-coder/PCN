@@ -1,0 +1,142 @@
+import numpy as np
+import matplotlib.pyplot as plt
+class PredictiveUnit:
+    def __init__(self, weightsize, learning_rate, learning_ratew):
+        self.num_inputs = weightsize
+        self.weights = np.random.randn(weightsize) * np.sqrt(2.0 / weightsize)
+        self.learning_rate = learning_rate
+        self.learning_ratew = learning_ratew
+        self.state = 0.0
+        self.prediction = 0.0
+        self.error = 0.0
+        self.presisi = 1.0
+        self.varian = 1.0
+
+    def predict(self, input_data):
+        input_data = np.array(input_data).flatten()
+        self.state = np.dot(self.weights, input_data)
+        self.prediction = relu(self.state)
+        return self.prediction
+
+    def calculate_error(self, actual_value):
+        raw = (np.array(actual_value) - self.prediction).item()
+        self.varian = (1 - 0.01) * self.varian + 0.01 * (raw ** 2)
+        self.varian = max(self.varian, 0.5)
+        self.presisi = 1.0 / (self.varian + 1e-3)
+        self.precision = min(self.presisi, 2.0)
+        self.error = (raw ** 2) * self.presisi
+        return self.error
+
+    def weight_update(self, signal, input_data):
+        input_data = np.asarray(input_data).flatten()
+        self.weights += self.learning_ratew * float(signal) * input_data
+        return self.error
+
+
+class hierarchy:
+    def __init__(self, layer_sizes, learning_rate, learning_ratew):
+        self.learning_rate = learning_rate
+        self.learning_ratew = learning_ratew
+        self.layers = []
+        for i in range(1, len(layer_sizes) - 1):
+            num_neurons = layer_sizes[i]
+            num_inputs = layer_sizes[i+1]
+            layer_neurons = [PredictiveUnit(num_inputs, self.learning_rate, self.learning_ratew) for _ in range(num_neurons)]
+            self.layers.append(layer_neurons)
+
+    def down(self, top):
+        current = top
+        for i in reversed(range(len(self.layers))):
+            next_layer = []
+            for neuron in self.layers[i]:
+                next_layer.append(neuron.predict(current))
+            current = np.array(next_layer)
+        return current
+
+    def up(self, sensory_target):
+        errors = []
+        for i, layer in enumerate(self.layers):
+            if i == 0:
+                errors = [n.calculate_error(sensory_target[j]) for j, n in enumerate(layer)]
+            else:
+                errors = [n.calculate_error(n.prediction) for n in layer]
+        return errors
+
+    def minimizeerror(self, top):
+        curinput = np.asarray(top).flatten()
+        for i in reversed(range(len(self.layers))):
+            for neuron in self.layers[i]:
+                el = neuron.error * drelu(neuron.state)
+                neuron.weight_update(el, curinput)
+            curinput = np.array([n.prediction for n in self.layers[i]]).flatten()
+        return self.layers
+
+    def update(self, sensory_target, top_input, train=True):
+        current_target = sensory_target
+        if not train:
+            top_layer = self.layers[-1]
+            for neuron in top_layer:
+                top_input += self.learning_rate * (neuron.error * neuron.weights)
+        for i, layer in enumerate(self.layers):
+            for j, neuron in enumerate(layer):
+                bottomweight = [n.weights[j] for n in self.layers[i-1]] if i > 0 else [0]
+                bottomerror = [n.error for n in self.layers[i-1]] if i > 0 else 0
+                bottomerror = np.array(bottomerror)
+                bottomweight = np.array(bottomweight)
+                sum_val = np.dot(bottomweight, bottomerror)
+                neuron.state += self.learning_rate * (neuron.error * drelu(neuron.state) + sum_val)
+                neuron.prediction = relu(neuron.state)
+            current_target = np.array([n.prediction for n in layer])
+    def compute_free_energy(self):
+                total_F = 0.0
+                n_neurons = 0
+                for layer in self.layers:
+                    for neuron in layer:
+                        weighted_error = neuron.error
+                        total_F += weighted_error
+                        n_neurons += 1
+                return total_F / (n_neurons + 1e-6)
+
+def relu(x):
+    return np.where(x > 0, x, 1 * (np.exp(x) - 1))
+
+def drelu(x):
+    return np.where(x > 0, 1.0, 1 * np.exp(x))
+struct = [4, 4, 5, 10]
+def dat(mode):
+    if mode == "normal":
+        return np.array([1, 2, 3, 4])
+    if mode == "beda":
+        return np.array([8, 4, 1, 9])
+    if mode == "abnormal":
+        return np.array([5, 2, 6, 7])
+model = hierarchy(struct, 1e-2, 1e-2)
+prior = np.ones(10)
+data = dat(mode="normal")
+collection = []
+for i in range(5000):
+    if i == 4000:
+        data = dat(mode="abnormal")
+    if i == 1500:
+        data = dat("beda")
+    for j in range(30):
+        pred = model.down(prior)
+        model.up(data)
+        model.update(data, prior, train=False)
+    if i < 3000:
+        model.minimizeerror(prior)
+    print(str(pred) + " prediksi")
+    er = model.compute_free_energy()
+    collection.append(er)
+    print(er)
+
+plt.figure(figsize=(10, 6))
+plt.plot(collection, label="Free Energy")
+plt.axvline(500, color="red", linestyle="--", label="Switch to abnormal data")
+plt.xlabel("Iteration")
+plt.ylabel("Free Energy")
+plt.title("Free Energy over Training Iterations")
+plt.legend()
+plt.show()
+
+    
